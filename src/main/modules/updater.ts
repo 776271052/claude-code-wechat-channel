@@ -151,10 +151,19 @@ export async function downloadUpdate(
   const fileName = `Claude Code WeChat ${version}.exe`
   const downloadUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/v${version}/${encodeURIComponent(fileName)}`
 
-  // 保存到用户下载目录
-  const homeDir = process.env.HOME || process.env.USERPROFILE || process.cwd()
-  const downloadsDir = path.join(homeDir, 'Downloads')
-  const filePath = path.join(downloadsDir, fileName)
+  // 保存到当前 EXE 所在目录
+  let appDir: string
+  try {
+    const { app } = require('electron')
+    if (app.isPackaged) {
+      appDir = require('node:path').dirname(process.execPath)
+    } else {
+      appDir = process.cwd()
+    }
+  } catch {
+    appDir = process.cwd()
+  }
+  const filePath = path.join(appDir, fileName)
 
   log(`开始下载更新: ${downloadUrl}`)
   log(`保存到: ${filePath}`)
