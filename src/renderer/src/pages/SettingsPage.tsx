@@ -214,18 +214,29 @@ export default function SettingsPage() {
                         { label: '月之暗面', url: 'https://api.moonshot.cn/v1/chat/completions', protocol: 'openai' as const },
                         { label: '智谱', url: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', protocol: 'openai' as const },
                         { label: '阿里通义', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', protocol: 'openai' as const },
+                        { label: '自定义', url: '', protocol: 'openai' as const, isCustom: true },
                       ].map((p) => (
-                        <button key={p.label} onClick={() => setLocal({ ...localSettings, apiUrl: p.url, apiProtocol: p.protocol })}
-                          className={cn('rounded-md border px-2 py-1 text-xs transition-all',
-                            localSettings.apiUrl === p.url ? 'border-blue-300 bg-blue-50 text-blue-700 font-medium' : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-500')}>
-                          {p.label}
+                        <button key={p.label} onClick={() => {
+                          if (p.isCustom) {
+                            // 聚焦到 URL 输入框
+                            setLocal({ ...localSettings, apiUrl: '', apiProtocol: 'openai' })
+                          } else {
+                            setLocal({ ...localSettings, apiUrl: p.url, apiProtocol: p.protocol })
+                          }
+                        }}
+                          className={cn('rounded-md border px-2.5 py-1.5 text-xs transition-all',
+                            p.isCustom
+                              ? 'border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-600'
+                              : localSettings.apiUrl === p.url ? 'border-blue-300 bg-blue-50 text-blue-700 font-medium' : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-500')}>
+                          {p.isCustom ? '+ 自定义' : p.label}
                         </button>
                       ))}
                     </div>
                   </div>
 
                   {/* URL */}
-                  <Field label="API 地址" icon={Globe} error={apiUrlError}>
+                  <Field label="API 地址" icon={Globe} error={apiUrlError}
+                    hint={localSettings.apiUrl ? '完整的 API 接口地址' : '点击上方预设或手动输入完整 API 地址'}>
                     <Input value={localSettings.apiUrl} onChange={(e) => setLocal({ ...localSettings, apiUrl: e.target.value })}
                       placeholder={localSettings.apiProtocol === 'anthropic' ? 'https://api.anthropic.com/v1/messages' : 'https://api.deepseek.com/v1/chat/completions'}
                       className={cn('font-mono text-sm', apiUrlError && 'border-red-300')} />
