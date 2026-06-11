@@ -36,8 +36,10 @@ const api = {
 
   // Updater
   checkForUpdate: (): Promise<UpdateCheckResult> => ipcRenderer.invoke('wechat:checkForUpdate'),
-  downloadUpdate: (version: string): Promise<{ success: boolean; filePath?: string; error?: string; oldFilePath?: string; oldDeleted?: boolean; needManualDelete?: boolean }> =>
+  downloadUpdate: (version: string): Promise<{ success: boolean; filePath?: string; error?: string; oldFilePath?: string; oldDeleted?: boolean; needManualDelete?: boolean; scriptPath?: string; needRestart?: boolean }> =>
     ipcRenderer.invoke('wechat:downloadUpdate', { version }),
+  restartForUpdate: (scriptPath: string): Promise<void> =>
+    ipcRenderer.invoke('wechat:restartForUpdate', { scriptPath }),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('wechat:openExternal', { url }),
 
   // Push events — returns unsubscribe function

@@ -1,6 +1,7 @@
 import https from 'node:https'
 import fs from 'node:fs'
 import path from 'node:path'
+import { exec } from 'node:child_process'
 import { resolve } from 'node:path'
 import { log, logError } from '../utils/logger'
 
@@ -32,6 +33,8 @@ export interface DownloadResult {
   oldFilePath?: string
   oldDeleted?: boolean
   needManualDelete?: boolean
+  scriptPath?: string
+  needRestart?: boolean
 }
 
 function fetchText(url: string, timeoutMs = 10_000): Promise<string> {
@@ -204,44 +207,45 @@ export async function downloadUpdate(
       resolve({ success: false, error: '下载超时' })
     })
   }).then((result) => {
-    // 下载成功后，尝试删除旧版本
-    if (result.success && currentExePath) {
-      const oldVersion = getAppVersion()
-      const oldFileName = `Claude Code WeChat ${oldVersion}.exe`
-      const oldFilePath = path.join(appDir, oldFileName)
+    if (!result.success) return result
 
-      // 如果新旧文件路径不同，尝试删除旧文件
-      if (oldFilePath !== filePath && fs.existsSync(oldFilePath)) {
-        try {
-          // 如果旧文件就是当前运行的程序，无法删除（Windows 限制）
-          if (oldFilePath === currentExePath) {
-            log(`旧版本正在运行，无法删除: ${oldFilePath}`)
-            log(`请手动删除旧版本后，运行新版本: ${filePath}`)
-            return {
-              ...result,
-              oldFilePath,
-              needManualDelete: true,
-            }
-          }
+    // 创建替换脚本
+    const oldVersion = getAppVersion()
+    const oldFileName = `Claude Code WeChat ${oldVersion}.exe`
+    const oldFilePath = path.join(appDir, oldFileName)
 
-          fs.unlinkSync(oldFilePath)
-          log(`已删除旧版本: ${oldFilePath}`)
-          return {
-            ...result,
-            oldFilePath,
-            oldDeleted: true,
-          }
-        } catch (err) {
-          log(`无法删除旧版本: ${oldFilePath} - ${err}`)
-          return {
-            ...result,
-            oldFilePath,
-            needManualDelete: true,
-          }
-        }
+    // 如果新旧文件相同，无需替换
+    if (oldFilePath === filePath) {
+      return result
+    }
+
+    // 创建 Windows 批处理脚本来替换旧版本
+    const scriptPath = path.join(appDir, '_update.bat')
+    const scriptContent = `@echo off
+timeout /t 3 /nobreak >nul
+del "${oldFilePath}" 2>nul
+ren "${filePath}" "${oldFileName}" 2>nul
+start "" "${oldFilePath}"
+del "%~f0"
+`
+
+    try {
+      fs.writeFileSync(scriptPath, scriptContent, 'utf-8')
+      log(`已创建更新脚本: ${scriptPath}`)
+      return {
+        ...result,
+        oldFilePath,
+        scriptPath,
+        needRestart: true,
+      }
+    } catch (err) {
+      log(`创建更新脚本失败: ${err}`)
+      return {
+        ...result,
+        oldFilePath,
+        needManualDelete: true,
       }
     }
-    return result
   })
 }
 

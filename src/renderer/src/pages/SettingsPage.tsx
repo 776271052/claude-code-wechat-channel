@@ -70,7 +70,7 @@ export default function SettingsPage() {
   const [updateError, setUpdateError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState<{ percent: number; downloaded: number; total: number; speed: number } | null>(null)
-  const [downloadResult, setDownloadResult] = useState<{ success: boolean; filePath?: string; error?: string; oldFilePath?: string; oldDeleted?: boolean; needManualDelete?: boolean } | null>(null)
+  const [downloadResult, setDownloadResult] = useState<{ success: boolean; filePath?: string; error?: string; oldFilePath?: string; oldDeleted?: boolean; needManualDelete?: boolean; scriptPath?: string; needRestart?: boolean } | null>(null)
 
   useEffect(() => {
     api.loadSettings().then((s: AppSettings) => { setLocal(s); setExtraArgsText(JSON.stringify(s.extraArgs, null, 2)) })
@@ -474,15 +474,26 @@ export default function SettingsPage() {
                       {downloadResult.success && downloadResult.filePath && (
                         <div className="text-gray-500 font-mono break-all">{downloadResult.filePath}</div>
                       )}
-                      {downloadResult.success && downloadResult.oldDeleted && (
-                        <div className="text-emerald-600">✓ 旧版本已自动删除</div>
+                      {downloadResult.success && downloadResult.needRestart && (
+                        <div className="space-y-2">
+                          <div className="text-emerald-600 font-medium">
+                            ✓ 新版本已下载，点击下方按钮完成更新
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => api.restartForUpdate(downloadResult.scriptPath!)}
+                            className="gap-1.5 h-8 text-xs"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />立即更新并重启
+                          </Button>
+                        </div>
                       )}
                       {downloadResult.success && downloadResult.needManualDelete && (
                         <div className="text-amber-600">
                           ⚠ 旧版本正在运行，无法自动删除。请关闭当前应用后，手动删除旧版本，然后运行新版本。
                         </div>
                       )}
-                      {downloadResult.success && (
+                      {downloadResult.success && !downloadResult.needRestart && !downloadResult.needManualDelete && (
                         <Button size="sm" variant="outline" onClick={() => api.openExternal(downloadResult.filePath!)} className="gap-1.5 h-7 text-xs border-gray-200">
                           <ExternalLink className="h-3 w-3" />打开文件位置
                         </Button>

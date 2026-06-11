@@ -241,6 +241,19 @@ export function registerIpcHandlers(bot: BotController, mainWindow: BrowserWindo
       mainWindow.webContents.send('wechat:downloadProgress', progress)
     })
   })
+  ipcMain.handle('wechat:restartForUpdate', async (_e, { scriptPath }: { scriptPath: string }) => {
+    // 运行更新脚本并关闭应用
+    try {
+      const { spawn } = await import('node:child_process')
+      spawn('cmd', ['/c', 'start', '', scriptPath], { detached: true, stdio: 'ignore' }).unref()
+      // 延迟关闭应用，让脚本有时间启动
+      setTimeout(() => {
+        app.quit()
+      }, 500)
+    } catch (err) {
+      logError(`运行更新脚本失败: ${err}`)
+    }
+  })
   ipcMain.handle('wechat:openExternal', async (_e, { url }: { url: string }) => {
     if (url.startsWith('https://') || url.startsWith('http://')) {
       await shell.openExternal(url)
