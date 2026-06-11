@@ -154,8 +154,8 @@ export async function downloadUpdate(
   version: string,
   onProgress?: (progress: DownloadProgress) => void,
 ): Promise<DownloadResult> {
-  const fileName = `Claude Code WeChat ${version}.exe`
-  const downloadUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/v${version}/${encodeURIComponent(fileName)}`
+  const fileName = `Claude Code WeChat.exe`
+  const downloadUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/v${version}/${encodeURIComponent(`Claude Code WeChat ${version}.exe`)}`
 
   // 保存到当前 EXE 所在目录
   let appDir: string
@@ -211,15 +211,35 @@ export async function downloadUpdate(
 
     // 创建替换脚本
     const oldVersion = getAppVersion()
-    const oldFileName = `Claude Code WeChat ${oldVersion}.exe`
+    const oldFileName = `Claude Code WeChat.exe`
     const oldFilePath = path.join(appDir, oldFileName)
 
-    // 如果新旧文件相同，无需替换
+    // 如果新旧文件相同，直接覆盖
     if (oldFilePath === filePath) {
-      return result
+      // 创建重启脚本
+      const scriptPath = path.join(appDir, '_update.bat')
+      const scriptContent = `@echo off
+timeout /t 2 /nobreak >nul
+start "" "${filePath}"
+del "%~f0"
+`
+
+      try {
+        fs.writeFileSync(scriptPath, scriptContent, 'utf-8')
+        log(`已创建重启脚本: ${scriptPath}`)
+        return {
+          ...result,
+          oldFilePath,
+          scriptPath,
+          needRestart: true,
+        }
+      } catch (err) {
+        log(`创建重启脚本失败: ${err}`)
+        return result
+      }
     }
 
-    // 创建 Windows 批处理脚本来替换旧版本
+    // 创建替换脚本（不同文件名的情况）
     const scriptPath = path.join(appDir, '_update.bat')
     const scriptContent = `@echo off
 timeout /t 3 /nobreak >nul

@@ -11,7 +11,7 @@ win:
       arch:
         - x64
 portable:
-  artifactName: "${productName} ${version}.exe"
+  artifactName: "${productName}.exe"
 compression: maximum
 asar: true
 files:
