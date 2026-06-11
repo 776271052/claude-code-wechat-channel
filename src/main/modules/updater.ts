@@ -29,6 +29,9 @@ export interface DownloadResult {
   success: boolean
   filePath?: string
   error?: string
+  oldFilePath?: string
+  oldDeleted?: boolean
+  needManualDelete?: boolean
 }
 
 function fetchText(url: string, timeoutMs = 10_000): Promise<string> {
@@ -139,7 +142,7 @@ export async function checkForUpdate(): Promise<UpdateCheckResult> {
 }
 
 /**
- * 下载更新文件
+ * 下载更新文件并替换旧版
  * @param version 版本号 (如 "1.1.0")
  * @param onProgress 进度回调
  * @returns 下载结果
@@ -153,10 +156,12 @@ export async function downloadUpdate(
 
   // 保存到当前 EXE 所在目录
   let appDir: string
+  let currentExePath: string | null = null
   try {
     const { app } = require('electron')
     if (app.isPackaged) {
       appDir = require('node:path').dirname(process.execPath)
+      currentExePath = process.execPath
     } else {
       appDir = process.cwd()
     }
@@ -198,6 +203,45 @@ export async function downloadUpdate(
       request.destroy()
       resolve({ success: false, error: '下载超时' })
     })
+  }).then((result) => {
+    // 下载成功后，尝试删除旧版本
+    if (result.success && currentExePath) {
+      const oldVersion = getAppVersion()
+      const oldFileName = `Claude Code WeChat ${oldVersion}.exe`
+      const oldFilePath = path.join(appDir, oldFileName)
+
+      // 如果新旧文件路径不同，尝试删除旧文件
+      if (oldFilePath !== filePath && fs.existsSync(oldFilePath)) {
+        try {
+          // 如果旧文件就是当前运行的程序，无法删除（Windows 限制）
+          if (oldFilePath === currentExePath) {
+            log(`旧版本正在运行，无法删除: ${oldFilePath}`)
+            log(`请手动删除旧版本后，运行新版本: ${filePath}`)
+            return {
+              ...result,
+              oldFilePath,
+              needManualDelete: true,
+            }
+          }
+
+          fs.unlinkSync(oldFilePath)
+          log(`已删除旧版本: ${oldFilePath}`)
+          return {
+            ...result,
+            oldFilePath,
+            oldDeleted: true,
+          }
+        } catch (err) {
+          log(`无法删除旧版本: ${oldFilePath} - ${err}`)
+          return {
+            ...result,
+            oldFilePath,
+            needManualDelete: true,
+          }
+        }
+      }
+    }
+    return result
   })
 }
 

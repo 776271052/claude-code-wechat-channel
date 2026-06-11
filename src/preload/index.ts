@@ -36,7 +36,7 @@ const api = {
 
   // Updater
   checkForUpdate: (): Promise<UpdateCheckResult> => ipcRenderer.invoke('wechat:checkForUpdate'),
-  downloadUpdate: (version: string): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+  downloadUpdate: (version: string): Promise<{ success: boolean; filePath?: string; error?: string; oldFilePath?: string; oldDeleted?: boolean; needManualDelete?: boolean }> =>
     ipcRenderer.invoke('wechat:downloadUpdate', { version }),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('wechat:openExternal', { url }),
 

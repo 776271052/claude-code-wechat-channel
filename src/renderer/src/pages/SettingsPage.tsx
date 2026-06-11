@@ -70,7 +70,7 @@ export default function SettingsPage() {
   const [updateError, setUpdateError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState<{ percent: number; downloaded: number; total: number; speed: number } | null>(null)
-  const [downloadResult, setDownloadResult] = useState<{ success: boolean; filePath?: string; error?: string } | null>(null)
+  const [downloadResult, setDownloadResult] = useState<{ success: boolean; filePath?: string; error?: string; oldFilePath?: string; oldDeleted?: boolean; needManualDelete?: boolean } | null>(null)
 
   useEffect(() => {
     api.loadSettings().then((s: AppSettings) => { setLocal(s); setExtraArgsText(JSON.stringify(s.extraArgs, null, 2)) })
@@ -462,12 +462,31 @@ export default function SettingsPage() {
 
                   {/* 下载结果 */}
                   {downloadResult && (
-                    <div className={cn('flex items-center gap-2 p-2 rounded-lg text-xs',
-                      downloadResult.success ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700')}>
-                      {downloadResult.success
-                        ? <><CheckCircle2 className="h-4 w-4" />下载完成: {downloadResult.filePath}</>
-                        : <><AlertCircle className="h-4 w-4" />{downloadResult.error}</>
-                      }
+                    <div className={cn('space-y-2 p-3 rounded-lg text-xs',
+                      downloadResult.success ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200')}>
+                      <div className={cn('flex items-center gap-2',
+                        downloadResult.success ? 'text-emerald-700' : 'text-red-700')}>
+                        {downloadResult.success
+                          ? <><CheckCircle2 className="h-4 w-4" />下载完成</>
+                          : <><AlertCircle className="h-4 w-4" />{downloadResult.error}</>
+                        }
+                      </div>
+                      {downloadResult.success && downloadResult.filePath && (
+                        <div className="text-gray-500 font-mono break-all">{downloadResult.filePath}</div>
+                      )}
+                      {downloadResult.success && downloadResult.oldDeleted && (
+                        <div className="text-emerald-600">✓ 旧版本已自动删除</div>
+                      )}
+                      {downloadResult.success && downloadResult.needManualDelete && (
+                        <div className="text-amber-600">
+                          ⚠ 旧版本正在运行，无法自动删除。请关闭当前应用后，手动删除旧版本，然后运行新版本。
+                        </div>
+                      )}
+                      {downloadResult.success && (
+                        <Button size="sm" variant="outline" onClick={() => api.openExternal(downloadResult.filePath!)} className="gap-1.5 h-7 text-xs border-gray-200">
+                          <ExternalLink className="h-3 w-3" />打开文件位置
+                        </Button>
+                      )}
                     </div>
                   )}
 
