@@ -1,0 +1,39 @@
+appId: com.claude-code.wechat-gui
+productName: Claude Code WeChat
+directories:
+  output: dist
+  buildResources: resources
+afterPack: scripts/strip-locales.mjs
+win:
+  icon: resources/icon.ico
+  target:
+    - target: portable
+      arch:
+        - x64
+portable:
+  artifactName: "${productName} ${version}.exe"
+compression: maximum
+asar: true
+files:
+  - out/**/*
+  # 排除已 tree-shake 的依赖
+  - "!node_modules/lucide-react/**"
+  - "!node_modules/qrcode.react/**"
+  - "!node_modules/react-router-dom/**"
+  - "!node_modules/@remix-run/**"
+  # 排除开发/调试文件
+  - "!node_modules/**/*.development.js"
+  - "!node_modules/**/*.development.mjs"
+  - "!node_modules/**/umd/**"
+  - "!node_modules/**/cjs/**"
+  - "!node_modules/**/*.map"
+  - "!node_modules/**/*.d.ts"
+  - "!node_modules/**/*.d.mts"
+  - "!node_modules/**/LICENSE*"
+  - "!node_modules/**/CHANGELOG*"
+  - "!node_modules/**/readme*"
+  - "!node_modules/**/README*"
+  # 排除不需要的子包
+  - "!node_modules/loose-envify/**"
+  - "!node_modules/js-tokens/**"
+  - "!node_modules/scheduler/**"
