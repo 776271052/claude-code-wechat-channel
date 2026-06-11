@@ -14,6 +14,13 @@ import type { AppSettings, LLMMode, UpdateCheckResult } from '../../../shared/ty
 
 const api = window.api
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
+}
+
 function describeApiError(err: string): string {
   const e = err.toLowerCase()
   if (e.includes('401') || e.includes('403') || e.includes('unauthorized')) return 'API 密钥无效或已过期'
@@ -61,6 +68,9 @@ export default function SettingsPage() {
   const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [updateError, setUpdateError] = useState<string | null>(null)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState<{ percent: number; downloaded: number; total: number; speed: number } | null>(null)
+  const [downloadResult, setDownloadResult] = useState<{ success: boolean; filePath?: string; error?: string } | null>(null)
 
   useEffect(() => {
     api.loadSettings().then((s: AppSettings) => { setLocal(s); setExtraArgsText(JSON.stringify(s.extraArgs, null, 2)) })
@@ -111,6 +121,26 @@ export default function SettingsPage() {
   const handleCheckUpdate = async () => {
     setCheckingUpdate(true); setUpdateError(null)
     try { const r = await api.checkForUpdate(); setUpdateResult(r); if (r.error) setUpdateError(r.error) } catch (e) { setUpdateError(`检查失败: ${String(e)}`) } finally { setCheckingUpdate(false) }
+  }
+
+  const handleDownloadUpdate = async () => {
+    if (!updateResult?.latestVersion) return
+    setDownloading(true); setDownloadProgress(null); setDownloadResult(null)
+
+    // 订阅进度事件
+    const unsub = api.onDownloadProgress((progress) => {
+      setDownloadProgress(progress)
+    })
+
+    try {
+      const result = await api.downloadUpdate(updateResult.latestVersion)
+      setDownloadResult(result)
+    } catch (e) {
+      setDownloadResult({ success: false, error: String(e) })
+    } finally {
+      setDownloading(false)
+      unsub()
+    }
   }
 
   const setMode = useCallback((mode: LLMMode) => { setLocal((s) => ({ ...s, mode })); setApiTestResult(null) }, [])
@@ -412,8 +442,40 @@ export default function SettingsPage() {
                     <span className="text-xs text-gray-400">(当前: {updateResult.currentVersion})</span>
                   </div>
                   {updateResult.releaseNotes && <div className="max-h-40 overflow-y-auto rounded-md bg-white border border-emerald-100 p-3 text-xs text-gray-600 whitespace-pre-wrap">{updateResult.releaseNotes}</div>}
+
+                  {/* 下载进度 */}
+                  {downloading && downloadProgress && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs text-gray-600">
+                        <span>下载中...</span>
+                        <span>{Math.round(downloadProgress.percent)}%</span>
+                      </div>
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${downloadProgress.percent}%` }} />
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-400">
+                        <span>{formatBytes(downloadProgress.downloaded)} / {formatBytes(downloadProgress.total)}</span>
+                        <span>{formatBytes(downloadProgress.speed)}/s</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 下载结果 */}
+                  {downloadResult && (
+                    <div className={cn('flex items-center gap-2 p-2 rounded-lg text-xs',
+                      downloadResult.success ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700')}>
+                      {downloadResult.success
+                        ? <><CheckCircle2 className="h-4 w-4" />下载完成: {downloadResult.filePath}</>
+                        : <><AlertCircle className="h-4 w-4" />{downloadResult.error}</>
+                      }
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
-                    {updateResult.downloadUrl && <Button size="sm" onClick={() => api.openExternal(updateResult.downloadUrl!)} className="gap-1.5"><Download className="h-3.5 w-3.5" />下载安装包</Button>}
+                    <Button size="sm" onClick={handleDownloadUpdate} disabled={downloading} className="gap-1.5">
+                      {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                      {downloading ? '下载中...' : '下载更新'}
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => api.openExternal('https://github.com/776271052/claude-code-wechat-channel')} className="gap-1.5 border-gray-200"><ExternalLink className="h-3.5 w-3.5" />官网首页</Button>
                   </div>
                 </div>

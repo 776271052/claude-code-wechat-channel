@@ -36,9 +36,16 @@ const api = {
 
   // Updater
   checkForUpdate: (): Promise<UpdateCheckResult> => ipcRenderer.invoke('wechat:checkForUpdate'),
+  downloadUpdate: (version: string): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+    ipcRenderer.invoke('wechat:downloadUpdate', { version }),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('wechat:openExternal', { url }),
 
   // Push events — returns unsubscribe function
+  onDownloadProgress: (cb: (progress: { percent: number; downloaded: number; total: number; speed: number }) => void): (() => void) => {
+    const handler = (_: unknown, data: { percent: number; downloaded: number; total: number; speed: number }) => cb(data)
+    ipcRenderer.on('wechat:downloadProgress', handler)
+    return () => ipcRenderer.removeListener('wechat:downloadProgress', handler)
+  },
   onLogEntry: (cb: (entry: LogEntry) => void): (() => void) => {
     const handler = (_: unknown, data: LogEntry) => cb(data)
     ipcRenderer.on('wechat:logEntry', handler)

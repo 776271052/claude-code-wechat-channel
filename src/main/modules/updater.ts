@@ -1,5 +1,6 @@
 import https from 'node:https'
 import fs from 'node:fs'
+import path from 'node:path'
 import { resolve } from 'node:path'
 import { log, logError } from '../utils/logger'
 
@@ -14,6 +15,19 @@ export interface UpdateCheckResult {
   downloadUrl: string | null
   releaseNotes: string
   publishedAt: string
+  error?: string
+}
+
+export interface DownloadProgress {
+  percent: number
+  downloaded: number
+  total: number
+  speed: number
+}
+
+export interface DownloadResult {
+  success: boolean
+  filePath?: string
   error?: string
 }
 
@@ -122,4 +136,120 @@ export async function checkForUpdate(): Promise<UpdateCheckResult> {
       error: msg,
     }
   }
+}
+
+/**
+ * 下载更新文件
+ * @param version 版本号 (如 "1.1.0")
+ * @param onProgress 进度回调
+ * @returns 下载结果
+ */
+export async function downloadUpdate(
+  version: string,
+  onProgress?: (progress: DownloadProgress) => void,
+): Promise<DownloadResult> {
+  const fileName = `Claude Code WeChat ${version}.exe`
+  const downloadUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/v${version}/${encodeURIComponent(fileName)}`
+
+  // 保存到用户下载目录
+  const homeDir = process.env.HOME || process.env.USERPROFILE || process.cwd()
+  const downloadsDir = path.join(homeDir, 'Downloads')
+  const filePath = path.join(downloadsDir, fileName)
+
+  log(`开始下载更新: ${downloadUrl}`)
+  log(`保存到: ${filePath}`)
+
+  return new Promise((resolve) => {
+    const request = https.get(downloadUrl, {
+      headers: { 'User-Agent': `${REPO_NAME}-gui` },
+    }, (res) => {
+      // 处理重定向
+      if (res.statusCode === 301 || res.statusCode === 302) {
+        const redirectUrl = res.headers.location
+        if (redirectUrl) {
+          https.get(redirectUrl, {
+            headers: { 'User-Agent': `${REPO_NAME}-gui` },
+          }, (redirectRes) => {
+            handleDownloadResponse(redirectRes, filePath, onProgress, resolve)
+          }).on('error', (err) => {
+            resolve({ success: false, error: `网络错误: ${err.message}` })
+          })
+          return
+        }
+      }
+
+      handleDownloadResponse(res, filePath, onProgress, resolve)
+    })
+
+    request.on('error', (err) => {
+      resolve({ success: false, error: `网络错误: ${err.message}` })
+    })
+
+    request.setTimeout(300000, () => {
+      request.destroy()
+      resolve({ success: false, error: '下载超时' })
+    })
+  })
+}
+
+function handleDownloadResponse(
+  res: any,
+  filePath: string,
+  onProgress: ((progress: DownloadProgress) => void) | undefined,
+  resolve: (result: DownloadResult) => void,
+): void {
+  if (res.statusCode !== 200) {
+    resolve({ success: false, error: `下载失败 (${res.statusCode})` })
+    return
+  }
+
+  const totalBytes = parseInt(res.headers['content-length'] || '0', 10)
+  let downloadedBytes = 0
+  let lastTime = Date.now()
+  let lastBytes = 0
+
+  // 确保下载目录存在
+  const dir = path.dirname(filePath)
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
+  }
+
+  const fileStream = fs.createWriteStream(filePath)
+
+  res.on('data', (chunk: Buffer) => {
+    downloadedBytes += chunk.length
+    fileStream.write(chunk)
+
+    // 计算进度和速度
+    const now = Date.now()
+    const elapsed = (now - lastTime) / 1000
+    if (elapsed >= 0.5) { // 每 0.5 秒更新一次
+      const speed = (downloadedBytes - lastBytes) / elapsed
+      const percent = totalBytes > 0 ? (downloadedBytes / totalBytes) * 100 : 0
+
+      onProgress?.({
+        percent: Math.min(percent, 100),
+        downloaded: downloadedBytes,
+        total: totalBytes,
+        speed,
+      })
+
+      lastTime = now
+      lastBytes = downloadedBytes
+    }
+  })
+
+  res.on('end', () => {
+    fileStream.end(() => {
+      log(`下载完成: ${filePath} (${downloadedBytes} bytes)`)
+      resolve({ success: true, filePath })
+    })
+  })
+
+  res.on('error', (err: Error) => {
+    fileStream.destroy()
+    // 清理失败的文件
+    try { fs.unlinkSync(filePath) } catch { /* ignore */ }
+    resolve({ success: false, error: `下载错误: ${err.message}` })
+  })
 }

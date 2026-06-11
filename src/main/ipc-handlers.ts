@@ -5,7 +5,7 @@ import { BotController } from './modules/bot-controller'
 import { fetchQRCode, pollQRStatus, saveLoginResult } from './modules/qr-login'
 import { loadCredentials, clearCredentials } from './modules/credentials'
 import { scanForClaudeCli, probeCliVersion, saveCliPreference, resolveLatestCliPath, diagnoseCliResolution } from './modules/cli-discovery'
-import { checkForUpdate } from './modules/updater'
+import { checkForUpdate, downloadUpdate, type DownloadProgress } from './modules/updater'
 import { registerProcess, writeToCurrentBotStdin } from './modules/claude-runner'
 import { testApiConnection, fetchModels } from './modules/openai-runner'
 import { SETTINGS_FILE, getAppDir } from './utils/paths'
@@ -235,6 +235,12 @@ export function registerIpcHandlers(bot: BotController, mainWindow: BrowserWindo
 
   // Updater
   ipcMain.handle('wechat:checkForUpdate', async () => checkForUpdate())
+  ipcMain.handle('wechat:downloadUpdate', async (_e, { version }: { version: string }) => {
+    return downloadUpdate(version, (progress) => {
+      // 发送进度到渲染进程
+      mainWindow.webContents.send('wechat:downloadProgress', progress)
+    })
+  })
   ipcMain.handle('wechat:openExternal', async (_e, { url }: { url: string }) => {
     if (url.startsWith('https://') || url.startsWith('http://')) {
       await shell.openExternal(url)
